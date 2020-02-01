@@ -51,4 +51,29 @@ USdata.dt[, MaxMurder := max(c(Murder.x, Murder.y)), by=State]
 USdata.dt[, Murder.x := NULL]
 USdata.dt[, Murder.y := NULL]
 
+### airquality ###
 
+# count the number of observed values per column and 
+# report the percentage of missing values per column
+
+sapply(airquality, function(z)sum(!is.na(z)))
+sapply(airquality, function(z)round((sum(is.na(z))/length(z)*100),1))
+
+# make a copy of the dataframe converting to data table
+
+air.dt <- copy(data.table(airquality))
+
+# impute the missing values to the mean
+
+air.dt <- sapply( air.dt, function(z)(ifelse(is.na(z), round(mean(z, na.rm=TRUE),1), round(z,1))))
+
+# only for columns with imputed values plot side by side 
+# histograms of raw (unimputed) and imputed columns.
+
+par(mfrow=c(1,2))
+hist(airquality$Ozone, main="Before Imputation", xlab = "Ozone (ppb)")
+hist(air.dt[, "Ozone"], main="After Imputation", , xlab = "Ozone (ppb)")
+
+par(mfrow=c(1,2))
+hist(airquality$Solar.R, main="Before Imputation", xlab = "Solar radiation (lang)")
+hist(air.dt[,"Solar.R"], main="After Imputation", xlab = "Solar radiation (lang)")
