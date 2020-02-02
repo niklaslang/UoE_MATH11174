@@ -65,15 +65,90 @@ air.dt <- copy(data.table(airquality))
 
 # impute the missing values to the mean
 
-air.dt <- sapply( air.dt, function(z)(ifelse(is.na(z), round(mean(z, na.rm=TRUE),1), round(z,1))))
+# generic version - impute all missing values to the mean
+
+air.dt.imp.mean <- sapply( air.dt, function(z)(ifelse(is.na(z), round(mean(z, na.rm=TRUE),1), round(z,1))))
+
+# add new column with imputed values
+
+air.dt[, Ozone.imp.mean := ifelse(is.na(Ozone), round(mean(Ozone, na.rm=TRUE),2), Ozone)]
+air.dt[, Solar.R.imp.mean := ifelse(is.na(Solar.R), round(mean(Solar.R, na.rm=TRUE),2), Solar.R)]
 
 # only for columns with imputed values plot side by side 
 # histograms of raw (unimputed) and imputed columns.
 
 par(mfrow=c(1,2))
 hist(airquality$Ozone, main="Before Imputation", xlab = "Ozone (ppb)")
-hist(air.dt[, "Ozone"], main="After Imputation", , xlab = "Ozone (ppb)")
+hist(air.dt.imp.mean[, "Ozone"], main="After Imputation", , xlab = "Ozone (ppb)")
 
 par(mfrow=c(1,2))
 hist(airquality$Solar.R, main="Before Imputation", xlab = "Solar radiation (lang)")
-hist(air.dt[,"Solar.R"], main="After Imputation", xlab = "Solar radiation (lang)")
+hist(air.dt.imp.mean[,"Solar.R"], main="After Imputation", xlab = "Solar radiation (lang)")
+
+
+par(mfrow=c(2,2))
+with(air.dt, hist(Ozone, main="Before Imputation", xlab = "Ozone (ppb)"))
+with(air.dt, hist(Ozone.imp.mean, main="After Imputation", , xlab = "Ozone (ppb)"))
+
+with(air.dt, hist(Solar.R, main="Before Imputation", xlab = "Solar radiation (lang)"))
+with(air.dt, hist(Solar.R.imp.mean, main="After Imputation", xlab = "Solar radiation (lang)"))
+
+
+# write function impute.to.monthly.mean(x, month) 
+# (where month is a vector of the same length of x) 
+# that imputes missing values according to the mean value for each month,
+# and repeat the imputation using this function
+
+impute.to.monthly.mean <- function(x, month){
+  
+  x.imp <- x
+  
+  for (m in unique(month)){
+    month.idx <- which(month == m)
+    month.mean <- mean(x[month.idx], na.rm = TRUE)
+    na.idx <- is.na(x.imp)
+    x.imp[na.idx & month == m] <- month.mean
+  }
+  
+  return(x.imp)
+
+}
+
+air.dt$Ozone.imp.month <- round(with(air.dt, impute.to.monthly.mean(Ozone, Month)),2)
+air.dt$Solar.R.imp.month <- round(with(air.dt, impute.to.monthly.mean(Solar.R, Month)),2)
+
+# report maximum absolute difference (maxi |xi −yi|)
+# and mean absolute difference (􏰀ni=1 |xi −yi|/n)
+# between imputation to the mean and imputation to the monthly mean 
+# (answer: Ozone: 18.51, 3.55, Solar.R: 14.07, 0.4)
+
+# maximum absolute difference
+
+with(air.dt, max(Ozone.imp.mean - Ozone.imp.month))
+with(air.dt, max(Solar.R.imp.mean - Solar.R.imp.month))
+
+# mean absolute difference
+
+with(air.dt, round(mean(abs(Ozone.imp.mean - Ozone.imp.month)),2))
+with(air.dt, round(mean(abs(Solar.R.imp.mean - Solar.R.imp.month)),2))
+
+# for Ozone only, compare graphically the distributions 
+# of the unimputed data, the data imputed to the mean,
+# and the data imputed to the monthly mean and justify the differences you see
+
+par(mfrow=c(3,1))
+with(air.dt, hist(Ozone, main="raw", xlab="Ozone (ppb)"))
+with(air.dt, hist(Ozone.imp.mean, main="imputed to overall mean", xlab="Ozone (ppb)"))
+with(air.dt, hist(Ozone.imp.month, main="imputed to monthly mean", xlab="Ozone (ppb)"))
+
+# explaination:
+
+# imputed to overall mean vs. raw: all missing values are replaced
+# by the overall mean of the variable, hence only the one bar whose
+# range includes the overall mean rises
+# here bar of range 40 - 60 rose from < 20 to > 50
+
+# imputed to monthly mean vs. raw: all missing values are replaced 
+# by the mean of the respective month, hence not only bar rises, but many
+# hence we observe that 2 bars rose sue to imputation!
+
