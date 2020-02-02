@@ -1,6 +1,7 @@
 ### data preparation ###
 
 library(data.table)
+library(lubridate)
 
 diab01.dt <- fread("data/diab01.txt", stringsAsFactors = TRUE)
 
@@ -31,7 +32,6 @@ boxplot(HDL ~ SEX, data=diab01.dt, main="HDL stratified by sex")
 
 # scatterplot of LDL
 plot(diab01.dt$LDL, main="Scatter plot of LDL", ylab="LDL")
-
 
 ### missing values ###
 
@@ -221,23 +221,24 @@ ModelSummary <- R6Class("ModelSummary", public = list(
       self$model.summary.dt <- data.table(summary(model.in)$coefficients, keep.rownames = TRUE)
       print(self$model.summary.dt)
       
+      # Add confidence intervals around the coefficients
+      self$model.summary.dt <- cbind(self$model.summar.dt, confint(model.in))
+      
       # Reformat the output table
-      self$model.summary.dt <-
-      self$model.summary.dt[,
-      .(Name = rn, Estimate = signif(Estimate, 3),
-      `95% CI` = paste0("(", signif(`2.5 %`, 3), ", ",
-      signif(`97.5 %`, 3), ")"), `P-value` = signif(`Pr(>|t|)`, 3) )]
+      self$model.summary.dt <- self$model.summary.dt[, .(Name = rn, Estimate = signif(Estimate, 3),
+                                 `95% CI` = paste0("(", signif('2.5 %', 3), ", ", signif('97.5 %', 3), ")"), 'P-value' = signif('Pr(>|t|)', 3) )]
       
       # Keep a copy of the original model
       self$model.store <- model.in
     },
     
-    # reformatting significance level description
+    # Reformat significance level description
     statssignifdt = function(thresh=0.05){
       stopifnot(is.numeric(thresh))
+      
       if(!self$model.thresh.set){
-        self$model.summary.dt[,`P-value` := ifelse(`P-value` < thresh,
-                                paste0("<", thresh), as.character(`P-value`))]
+        self$model.summary.dt[,'P-value' := ifelse('P-value' < thresh,
+                                paste0("<", thresh), as.character('P-value'))]
         # only allow setting of the threshold once
         self$model.thresh.set=TRUE
       } else {
@@ -258,6 +259,5 @@ ModelSummary <- R6Class("ModelSummary", public = list(
     if(!self$model.thresh.set) {
       cat("P-value threshold not yet set. Run statsignifdt() method.\n")
     }
-    
   })
-)
+)  
