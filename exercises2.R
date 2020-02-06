@@ -152,3 +152,82 @@ with(air.dt, hist(Ozone.imp.month, main="imputed to monthly mean", xlab="Ozone (
 # by the mean of the respective month, hence not only bar rises, but many
 # hence we observe that 2 bars rose sue to imputation!
 
+### diab01.txt ###
+
+library(data.table)
+library(lubridate)
+
+diab01.dt <- fread("data/diab01.txt", stringsAsFactors = TRUE)
+
+# fit a linear regression model for Y adjusted for age, sex and total cholesterol (TC)
+
+regr.TC <- lm(Y ~ AGE + SEX + TC , data=diab01.dt)
+
+# create a vector called results.table which stores 4 numbers: 
+#regression coefficient and p-value for total cholesterol, R^2 and adjusted R^2 of the model
+
+summ.regr <- summary(regr.TC)
+results.table <- c(summ.regr$coefficients[4, 1], 
+                   summ.regr$coefficients[4, 4],
+                   summ.regr$r.squared, 
+                   summ.regr$adj.r.squared)
+results.table <- round(results.table, 4)
+results.table
+
+# build all other possible linear regression models for Y using age, sex and 
+# one other predictor at a time
+# for each predictor, append a row of results to results.table in the same format as before
+
+
+for(predictor in c("BMI", "BP", "LDL", "HDL", "GLU")){
+  regr.predictor <- lm(paste0("Y ~ AGE + SEX + ", predictor), data=diab01.dt)
+  summ.regr.predictor <- summary(regr.predictor)
+  results.table <- rbind(results.table, c(summ.regr.predictor$coefficients[4, 1], 
+                                          summ.regr.predictor$coefficients[4, 4],
+                                          summ.regr.predictor$r.squared, 
+                                          summ.regr.predictor$adj.r.squared))
+  
+  results.table <- round(results.table, 4)
+}
+
+# at the end, add row names to results.table to correspond to the predictors used.
+
+colnames(results.table) <- c('coefficients','p.value','r.squared','adj.r.squared')
+rownames(results.table) <- c('TC', 'BMI', 'BP', 'LDL', 'HDL', 'GLU')
+results.table
+
+# identify the predictor that produces the best performing model (answer: BMI)
+
+# from all significant predictor choose the one with the highest R-squared value
+# in general, the higher the R-squared, the better the model fits your data
+
+results.table[, "p-value" < 0.05]
+
+results <- data.frame(results.table)
+best.results <- results[results$p.value < 0.05 & results$r.squared == max(signf.results$r.squared),]
+best.results
+
+# starting from the set of covariates used in the model with best performance determined above,
+# write a loop to fit all possible linear regression models 
+# that use one additional predictor
+# produce a table of R2 and adjusted R2 of all models you fitted in the loop
+# report the adjusted R2 of the model of best fit (answer: 0.252)
+
+results.BMI.models <- vector(mode="numeric", length=0)
+
+for(predictor in c("TC", "BP", "LDL", "HDL", "GLU")){
+  regr.predictor <- lm(paste0("Y ~ AGE + SEX + BMI + ", predictor), data=diab01.dt)
+  summ.regr.predictor <- summary(regr.predictor)
+  results.BMI.models <- rbind(results.BMI.models,
+                              c(summ.regr.predictor$r.squared, 
+                              summ.regr.predictor$adj.r.squared))
+  results.BMI.models <- round(results.BMI.models, 4)
+}
+
+colnames(results.BMI.models) <- c('r.squared','adj.r.squared')
+rownames(results.BMI.models) <- c("TC", "BP", "LDL", "HDL", "GLU")
+results.BMI.models
+
+results.BMI.models[which(results.BMI.models[,2] == max(results.BMI.models[,2])),2]
+
+                   
