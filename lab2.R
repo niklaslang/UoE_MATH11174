@@ -260,4 +260,166 @@ ModelSummary <- R6Class("ModelSummary", public = list(
       cat("P-value threshold not yet set. Run statsignifdt() method.\n")
     }
   })
-)  
+) 
+
+## fitting linear regression models ###
+
+set.seed(1) # initialize the random number generator 
+x <- rnorm(100, mean=50, sd=10)
+y <- rnorm(100, mean=75, sd=20)
+cor(x, y)
+plot(x,y)
+
+# linear regression of variables in the workspace
+regr <- lm(y ~ x) 
+
+#extract the regression coefficient
+coef(regr) # same as regr$coefficients
+
+#note: if both variables were standardized 
+# the regression coefficient for x would correspond to the correlation coefficient
+
+x.std <- x / sd(x)
+y.std <- y / sd(y)
+coef(lm(y.std ~ x.std))
+
+plot(x, y)
+abline(regr) # regression line
+abline(h=coef(regr)[1], col="red") # horizontal line at the intercept
+
+# we generally concentrate on the table of hypothesis tests on the regression coefficients
+
+hyp.tests <- coef(summary(regr))
+hyp.tests # note that hyp.test is of class matrix
+
+# t value can be computed manually as the ratio of regression coefficients to standard errors
+tval <- hyp.tests[, "Estimate"] / hyp.tests[, "Std. Error"]
+tval
+
+#
+df <- length(y) - 1 - 1 # degrees of freedom with one predictor in the model?
+qt(c(0.025, 0.975), df) # quantiles of a t distribution?
+
+2 * pt(abs(tval), df, lower.tail=FALSE) # p-values
+#we can confidently reject the null hypothesis that the intercept term is zero
+# as its p-value is well below the standard significance threshold of 0.05
+# On the other hand, the same doesn’t hold for x
+
+## realistic data ##
+
+#association between age and diabetes severity
+diab01.dt <- fread("data/diab01.txt", stringsAsFactors = TRUE)
+regr.age <- lm(Y ~ AGE, data=diab01.dt) # specify the data table of covariates 
+
+coef(summary(regr.age))
+
+confint(regr.age)
+
+# let's look at the association between HDL and the outcome
+
+with(diab01.dt, cor(Y, HDL))
+with(diab01.dt, cor(Y, HDL, use="pairwise.complete.obs"))
+
+# modest inverse relationship between the two variables
+
+# confirm this with a linear regression model
+regr.hdl <- lm(Y ~ HDL, data=diab01.dt) 
+summary(regr.hdl)
+
+# Given that the p-value for HDL (0.00132) is below the significance threshold
+# we can say that HDL is significantly associated with the diabetes score
+
+# if age and sex were included in the model, would the association change?
+
+regr <- lm(Y ~ AGE + SEX + HDL, data=diab01.dt) 
+summary(regr)
+
+# here is a significant association between HDL and our outcome variable 
+# even after adjusting for age and sex (effect size has increased!)
+
+## standardized coefficients ##
+
+# dividing each continuous variable by its standard deviation
+# produces standardized coefficients
+diab01.dt.sd1 <- copy(diab01.dt)
+
+covar.cols <- colnames(diab01.dt.sd1[, -c("PAT", "SEX", "Y")]) # Exclude non covariate columns
+diab01.dt.sd1[, (covar.cols) := lapply(.SD, function(x) x / sd(x, na.rm = TRUE)), .SDcols = covar.cols]
+summary(lm(Y ~ AGE + SEX + HDL, data=diab01.dt.sd1))
+
+#lapply(): allows to modify the data table in place across column (lists)
+
+# this allows us to state that the effect of one standard deviation change in HDL 
+# is almost double than what produced by a change of one standard deviation in age 
+# (but in opposite directions)
+
+# note: in real-life analyses we generally work with standardized variables, 
+# so that comparing effects sizes of different variables is straightforward. 
+# when producing a model for clinical use, we may instead want to report equations 
+# that are in the original units (unstandardized), 
+# as a clinician will not have access to standard deviations
+
+## design matrix ##
+
+# the design matrix is the matrix of all elements in the predictors and the intercept
+X <- model.matrix(~ AGE + SEX + HDL, data=diab01.dt) # same as model.matrix(regr) 
+dim(X)
+
+### question: what is the intercept?
+
+# categorial variables are coded as dummy variables
+head(diab01.dt[, c("AGE", "SEX")])
+head(model.matrix(~ AGE + SEX, data=diab01.dt))
+
+# or a categorical variable with k levels, the design matrix contains 
+# k − 1 dummy variables corresponding to all non-reference categories
+
+# most important outputs from a regression model is the vector of fitted values y = Xβ, 
+# where X is our design matrix and β are the regression coefficients
+# y can be obtained my matrix multiplication!
+X <- model.matrix(regr) #design matrix
+beta.hat <- coef(regr)  #regression coefs
+y.hat <- X %*% beta.hat # matrix multiplication
+
+
+regr$fitted.values
+regr$model # complete dataset used in fitting the linear model
+regr$residuals
+all.equal(regr$residuals, regr$model$Y - regr$fitted.values)
+          
+## perfomance measure ##
+
+summ.regr <- summary(regr)
+ls(summ.regr) # list all objects that are stored inside the variable        
+summ.regr$coefficients
+
+# explanation of each of the terms is given in ?summary.lm
+
+summ.regr$sigma # residual standard error
+summ.regr$r.squared # 
+summ.regr$adj.r.squared #
+
+# computed manually, haha
+rse <- function(residuals, num.predictors)sqrt(sum(residuals^2) / (length(residuals) - num.predictors - 1))
+r.squared <- function(y.obs, y.pred)sum((y.pred - mean(y.obs))^2) / sum((y.obs - mean(y.obs))^2)
+adj.r.squared <- function(r.squared, n, num.predictors)1 - (1 - r.squared) * (n - 1) / (n - num.predictors - 1)
+
+# visualise the relationship between R^2 and adjusted R^2
+
+x.values <- seq(0.25, 1, by=0.05)
+num.predictors <- c(2, 10, 25, 50)
+
+## first do a plot with the first setting of the variables
+plot(x.values, adj.r.squared(x.values, 100, 2), ylim=c(-0.1, 1), 
+     xlab="R^2", ylab="Adjusted R^2", type="l") # connects points with lines
+
+## then add all other lines
+for (i in 2:length(num.predictors)) {
+  points(x.values, adj.r.squared(x.values, 100, num.predictors[i]),
+  type="l", col=i)
+}
+
+# the plot shows that the adjusted R2 is always lower, 
+# and decreases faster the more predictors are used in the model
+# if the number of predictors is large enough, relative to the sample size, 
+# it also possible for an adjusted R2 to go negative
