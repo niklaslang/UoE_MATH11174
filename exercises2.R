@@ -230,4 +230,99 @@ results.BMI.models
 
 results.BMI.models[which(results.BMI.models[,2] == max(results.BMI.models[,2])),2]
 
-                   
+### birthweight data ###
+
+# explore the dataset and prepare it for analysis
+
+birthweight.dt <- fread("data/birthweight.txt", stringsAsFactors = TRUE)
+
+head(birthweight.dt)
+sapply(birthweight.dt, function(z)round((sum(is.na(z))/length(z)*100),1))
+
+summary(birthweight.dt)
+
+num.cols <- which(sapply(birthweight.dt, function(z) (class(z) %in% c("numeric", "integer")))) 
+
+for (col in num.cols) {
+  hist(birthweight.dt[[col]], main=colnames(birthweight.dt[, ..col]))
+}
+
+birthweight.dt[, age.mother := ifelse(age.mother == 99, NA, age.mother)]
+birthweight.dt[, gestation := ifelse(gestation == 999, NA, gestation)]
+birthweight.dt[, height.mother := ifelse(height.mother == 999, NA, height.mother)]
+birthweight.dt[, prepregnancy.weight := ifelse(prepregnancy.weight == 999, NA, prepregnancy.weight)]
+birthweight.dt[, smoker := ifelse(smoker == 999, NA, smoker)]
+
+sapply(birthweight.dt, function(z)round((sum(is.na(z))/length(z)*100),1))
+summary(birthweight.dt)
+
+num.cols <- which(sapply(birthweight.dt, function(z) (class(z) %in% c("numeric", "integer")))) 
+
+for (col in num.cols) {
+  hist(birthweight.dt[[col]], main=colnames(birthweight.dt[, ..col]))
+}
+
+# summarize the distribution of birth weight for babies born to women 
+# who smoked during pregnancy and for babies born to women who didn’t
+# report the percentage of babies born weighing under
+# 2.5kg in the two strata of smoking status (answer: 8.26%, 3.37%)
+
+par(mfrow=c(1,2))
+hist(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 1)],
+     main = "Smoking Women", xlab = "Birthweight of Babies")
+hist(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 0)],
+     main = "Non-smoking Women", xlab = "Birthweight of Babies")
+
+length(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 1 & birthweight.dt$birth.weight < 2.5)])/
+  length(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 1)])*100
+
+length(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 0 & birthweight.dt$birth.weight < 2.5)])/
+  length(birthweight.dt$birth.weight[which(birthweight.dt$smoker == 0)])*100
+
+# fit a linear regression model to establish if there is an association 
+# between birth weight and smoking and how much birth weight changes according to smoking
+
+lm.smoking <- lm(birth.weight ~ smoker, data = birthweight.dt)
+summary(lm.smoking)
+coef(summary(lm.smoking))
+
+# this is not liner regression this is logistic regression
+# birthweight decreases by 25% of the mother smoked during pregnancy
+
+# By how much is the average length of gestation different for first born children? 
+
+gestation.firstborn <- birthweight.dt$gestation[which(birthweight.dt$first.born == 1)]
+gestation.nonfirstborn <- birthweight.dt$gestation[which(birthweight.dt$first.born == 0)]
+
+mean.gestation.diff <- mean(gestation.firstborn, na.rm = TRUE) - mean(gestation.nonfirstborn, na.rm = TRUE)
+mean.gestation.diff
+
+# Is the difference statistically significant? 
+
+gestation.t.test <- t.test(gestation.firstborn, gestation.nonfirstborn)
+gestation.t.test$p.value
+
+#yes it is!
+
+# Is the mother’s pre-pregnancy weight associated with length of gestation?
+
+lm.gestation <- lm(prepregnancy.weight ~ gestation , data = birthweight.dt)
+summary(lm.gestation)
+
+# yes there is an association, but it is not significant!
+
+# Is birth weight associated with the mother’s pre-pregnancy weight? 
+# Is the association independent of height of the mother? 
+
+lm.prepregnancyweight <- lm(birth.weight ~ prepregnancy.weight, data = birthweight.dt)
+summary(lm.prepregnancyweight)
+
+# yes there is an association and it is significant!
+# BUT the effect size is minimal: around 8g/kg prepregnancyweight
+
+lm.prepregnancyweight.height <- lm(birth.weight ~ prepregnancy.weight + height.mother, data = birthweight.dt)
+summary(lm.prepregnancyweight.height)
+
+# there is an significant association between prepregnancy.weight and birth.weight
+# even after adjusting for the height of the mother 
+# BUT the effect size has decreased eve further: around 4g/kg prepregnancyweight
